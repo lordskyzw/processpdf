@@ -17,6 +17,9 @@ pinecone.init(
     environment="northamerica-northeast1-gcp",
 )
 
+@app.route("/", methods=["GET"])
+def sayhi():
+    return "Tarmica says Hi!"
 
 @app.route("/pdf_embeddings", methods=["GET"])
 def default_response():
