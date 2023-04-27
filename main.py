@@ -19,44 +19,45 @@ pinecone.init(
 
 @app.route("/", methods=["GET"])
 def sayhi():
-    return "Tarmica says welcome to the pdf processing engine!"
+    return "Tarmica says welcome to the file processing engine!"
 
-@app.route("/pdf_embeddings", methods=["GET"])
+@app.route("/file_embeddings", methods=["GET"])
 def default_response():
     return "You made a GET request! Make a POST request for the interesting magic!"
 
 
-# Define endpoint to receive PDF documents and store vector embeddings in Pinecone
-@app.route("/pdf_embeddings", methods=["POST"])
-def pdf_embeddings():
-    # Load PDF document from request
+# Define endpoint to receive PDF and text documents and store vector embeddings in Pinecone
+@app.route("/file_embeddings", methods=["POST"])
+def file_embeddings():
+    # Load document from request
     try:
         file = request.files["file"]
-        if not file.filename.endswith('.pdf'):
-            return "Invalid file format. Only PDF files are allowed.", 400
+        if not file.filename.endswith('.pdf') and not file.filename.endswith('.txt'):
+            return "Invalid file format. Only PDF and TXT files are allowed.", 400
         uuid = request.form["uuid"]
     except Exception as e:
-        return f"Error loading PDF: {str(e)}", 400
+        return f"Error loading document: {str(e)}", 400
 
     # Set response headers for streaming
     def generate():
-        yield "Starting PDF processing...\n"
+        yield "Starting document processing...\n"
 
         try:
-            # Preprocess text content of PDF document
-            loader = PyPDFLoader(file)
-            doc = loader.load()
-
-            # Split text into chunks for processing
-            char_text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-            doc_texts = char_text_splitter.split_document(doc)
+            # Preprocess text content of document
+            if file.filename.endswith('.pdf'):
+                loader = PyPDFLoader(file)
+                doc = loader.load()
+                char_text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                doc_texts = char_text_splitter.split_document(doc)
+            elif file.filename.endswith('.txt'):
+                doc_texts = [file.read().decode('utf-8')]
 
             # Create vector embeddings of preprocessed text
             vector_embeddings = []
             for i, d in enumerate(doc_texts):
                 embeddings = openai.Completion.create(
                     engine="text-davinci-002",
-                    prompt=d.page_content,
+                    prompt=d,
                     max_tokens=512,
                     temperature=0.5,
                 )["choices"][0]["embedding"]
@@ -83,7 +84,7 @@ def pdf_embeddings():
             yield "end"
 
         except Exception as e:
-            yield f"Error processing PDF: {str(e)}\n"
+            yield f"Error processing document: {str(e)}\n"
             yield "end"
 
     return Response(generate(), mimetype="text/plain")
