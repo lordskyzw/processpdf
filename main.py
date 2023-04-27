@@ -19,9 +19,7 @@ pinecone.init(
 )
 
 # Initialize PostgreSQL connection
-db_url = os.environ.get(
-    "postgresql://postgres:emqm0bjXNhlbesD9udyQ@containers-us-west-190.railway.app:6490/railway"
-)
+db_url = os.environ.get("DATABASE_URL")
 if db_url is not None:
     conn = psycopg2.connect(db_url, sslmode="require")
 else:
