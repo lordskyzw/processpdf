@@ -32,6 +32,8 @@ def pdf_embeddings():
     # Load PDF document from request
     try:
         file = request.files["file"]
+        if not file.filename.endswith('.pdf'):
+            return "Invalid file format. Only PDF files are allowed.", 400
         uuid = request.form["uuid"]
     except Exception as e:
         return f"Error loading PDF: {str(e)}", 400
