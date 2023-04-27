@@ -5,6 +5,7 @@ from langchain.text_splitter import CharacterTextSplitter
 import openai
 import numpy as np
 import pinecone
+import psycopg2
 
 app = Flask(__name__)
 
@@ -16,6 +17,31 @@ pinecone.init(
     api_key=os.environ.get("PINECONE_API_KEY"),
     environment="northamerica-northeast1-gcp",
 )
+
+# Initialize PostgreSQL connection
+db_url = os.environ.get(
+    "postgresql://postgres:emqm0bjXNhlbesD9udyQ@containers-us-west-190.railway.app:6490/railway"
+)
+if db_url is not None:
+    conn = psycopg2.connect(db_url, sslmode="require")
+else:
+    conn = None
+
+# Define table schema
+table_schema = """
+CREATE TABLE IF NOT EXISTS files (
+    id SERIAL PRIMARY KEY,
+    uuid TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    data BYTEA NOT NULL
+);
+"""
+
+# Create table if it does not exist
+if conn is not None:
+    with conn.cursor() as cur:
+        cur.execute(table_schema)
+        conn.commit()
 
 
 @app.route("/", methods=["GET"])
@@ -39,6 +65,15 @@ def file_embeddings():
         uuid = request.form["uuid"]
     except Exception as e:
         return f"Error loading document: {str(e)}", 400
+
+    # Save file to database
+    if conn is not None:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO files (uuid, filename, data) VALUES (%s, %s, %s)",
+                (uuid, file.filename, file.read()),
+            )
+            conn.commit()
 
     # Set response headers for streaming
     def generate():
@@ -72,6 +107,7 @@ def file_embeddings():
 
             # Store vector embeddings in Pinecone
             index_name = "schooldocs"
+
             pinecone_index = pinecone.Index(index_name)
             index_ids = pinecone_index.add_ids([file.filename], vector_embeddings)
 
@@ -92,6 +128,25 @@ def file_embeddings():
             yield "end"
 
     return Response(generate(), mimetype="text/plain")
+
+
+@app.route("/file_data/<uuid>", methods=["GET"])
+def file_data(uuid):
+    # Retrieve file data from database using UUID
+    if conn is not None:
+        with conn.cursor() as cur:
+            cur.execute("SELECT filename, data FROM files WHERE uuid = %s", (uuid,))
+            result = cur.fetchone()
+            if result is None:
+                return "File not found.", 404
+            filename, data = result
+            return Response(
+                data,
+                mimetype="application/octet-stream",
+                headers={"Content-Disposition": f"attachment;filename={filename}"},
+            )
+    else:
+        return "Database connection not available.", 500
 
 
 if __name__ == "__main__":
