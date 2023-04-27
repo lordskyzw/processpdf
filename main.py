@@ -17,9 +17,11 @@ pinecone.init(
     environment="northamerica-northeast1-gcp",
 )
 
+
 @app.route("/", methods=["GET"])
 def sayhi():
     return "Tarmica says welcome to the file processing engine!"
+
 
 @app.route("/file_embeddings", methods=["GET"])
 def default_response():
@@ -32,7 +34,7 @@ def file_embeddings():
     # Load document from request
     try:
         file = request.files["file"]
-        if not file.filename.endswith('.pdf') and not file.filename.endswith('.txt'):
+        if not file.filename.endswith(".pdf") and not file.filename.endswith(".txt"):
             return "Invalid file format. Only PDF and TXT files are allowed.", 400
         uuid = request.form["uuid"]
     except Exception as e:
@@ -44,19 +46,21 @@ def file_embeddings():
 
         try:
             # Preprocess text content of document
-            if file.filename.endswith('.pdf'):
+            if file.filename.endswith(".pdf"):
                 loader = PyPDFLoader(file)
                 doc = loader.load()
-                char_text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                char_text_splitter = CharacterTextSplitter(
+                    chunk_size=1000, chunk_overlap=200
+                )
                 doc_texts = char_text_splitter.split_document(doc)
-            elif file.filename.endswith('.txt'):
-                doc_texts = [file.read().decode('utf-8')]
+            elif file.filename.endswith(".txt"):
+                doc_texts = [file.read().decode("utf-8")]
 
             # Create vector embeddings of preprocessed text
             vector_embeddings = []
             for i, d in enumerate(doc_texts):
                 embeddings = openai.Completion.create(
-                    engine="text-davinci-002",
+                    engine="text-embedding-ada-002",
                     prompt=d,
                     max_tokens=512,
                     temperature=0.5,
@@ -90,5 +94,5 @@ def file_embeddings():
     return Response(generate(), mimetype="text/plain")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True, port=os.getenv("PORT", default=5000))
