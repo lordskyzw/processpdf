@@ -12,3 +12,4 @@ pinecone-client
 PyPDF2
 openai
 psycopg2
+pexpect
