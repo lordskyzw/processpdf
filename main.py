@@ -1,5 +1,6 @@
 import os
-from flask import Flask, request, Response
+import requests
+from flask import Flask, request, Response, jsonify
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
 import openai
@@ -126,6 +127,54 @@ def file_embeddings():
             yield "end"
 
     return Response(generate(), mimetype="text/plain")
+
+
+@app.route('/transcribe', methods=['POST'])
+def transcribe():
+    # get YouTube URL from request
+    youtube_url = request.form['youtube_url']
+
+    # validate YouTube URL
+    if not youtube_url.startswith('https://www.youtube.com/watch?v='):
+        return jsonify({'error': 'Invalid YouTube URL'}), 400
+
+    # get video ID from YouTube URL
+    video_id = youtube_url.split('=')[-1]
+
+    # get video information using YouTube Data API
+    api_key = os.environ.get('YOUTUBE_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'Missing YouTube API key'}), 500
+
+    video_url = f'https://www.googleapis.com/youtube/v3/videos?id={video_id}&key={api_key}&part=snippet'
+    video_info = requests.get(video_url).json()
+    if not video_info['items']:
+        return jsonify({'error': 'Video not found'}), 404
+
+    video_title = video_info['items'][0]['snippet']['title']
+    video_description = video_info['items'][0]['snippet']['description']
+
+    # get video transcript using YouTube Transcription API
+    transcript_url = f'https://video.google.com/timedtext?lang=en&v={video_id}'
+    transcript_data = requests.get(transcript_url)
+    if transcript_data.status_code != 200:
+        return jsonify({'error': 'Transcript not available'}), 404
+
+    transcript_text = ''
+    for line in transcript_data.text.splitlines():
+        if line.startswith('<text '):
+            start = line.find('>') + 1
+            end = line.find('</text>')
+            transcript_text += line[start:end] + ' '
+
+    # return transcribed text and video information
+    return jsonify({
+        'title': video_title,
+        'description': video_description,
+        'transcript': transcript_text
+    }), 200
+
+
 
 
 @app.route("/file_data/<uuid>", methods=["GET"])
