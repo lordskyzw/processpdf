@@ -76,7 +76,7 @@ def file_embeddings():
             )
             conn.commit()
         # Reset file pointer
-    file.seek(0)
+        file.seek(0)
 
     # Set response headers for streaming
     def generate():
