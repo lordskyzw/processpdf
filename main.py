@@ -1,4 +1,5 @@
 import os
+from pydantic import ByteSize
 import requests
 from flask import Flask, request, Response, jsonify
 from langchain.document_loaders import PyPDFLoader
@@ -81,7 +82,8 @@ def file_embeddings():
         try:
             # Preprocess text content of document
             if file.filename.endswith(".pdf"):
-                loader = PyPDFLoader(file)
+                pdf_bytes = file.read()
+                loader = PyPDFLoader(ByteSize(pdf_bytes))
                 doc = loader.load()
                 char_text_splitter = CharacterTextSplitter(
                     chunk_size=1000, chunk_overlap=200
