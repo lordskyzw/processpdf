@@ -14,3 +14,4 @@ openai
 psycopg2
 pexpect
 requests
+pypdf
