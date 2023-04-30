@@ -43,6 +43,8 @@ if conn is not None:
         cur.execute(table_schema)
         conn.commit()
         
+        
+        
 
 
 @app.route("/", methods=["GET"])
@@ -94,6 +96,8 @@ def file_embeddings():
                     )
                     doc_texts = char_text_splitter.split_document(doc)
             elif file.filename.endswith(".txt"):
+                # Reset file pointer
+                file.seek(0)
                 doc_texts = [file_pointer.getvalue().decode("utf-8")]
 
             # Reset file pointer
@@ -136,6 +140,7 @@ def file_embeddings():
             yield "end"
 
     return Response(generate(), mimetype="text/plain")
+
 
 
 @app.route('/transcribe', methods=['POST'])
