@@ -42,6 +42,7 @@ if conn is not None:
     with conn.cursor() as cur:
         cur.execute(table_schema)
         conn.commit()
+        
 
 
 @app.route("/", methods=["GET"])
@@ -74,6 +75,8 @@ def file_embeddings():
                 (uuid, file.filename, file.read()),
             )
             conn.commit()
+        # Reset file pointer
+    file.seek(0)
 
     # Set response headers for streaming
     def generate():
@@ -91,6 +94,9 @@ def file_embeddings():
                 doc_texts = char_text_splitter.split_document(doc)
             elif file.filename.endswith(".txt"):
                 doc_texts = [file.read().decode("utf-8")]
+                
+            # Reset file pointer
+            file.seek(0)
 
             # Create vector embeddings of preprocessed text
             vector_embeddings = []
