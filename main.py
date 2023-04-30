@@ -87,7 +87,8 @@ def file_embeddings():
             # Preprocess text content of document
             if file.filename.endswith(".pdf"):
                 pdf_bytes = file.read()
-                loader = PyPDFLoader(file_pointer)
+                pdf_io = BytesIO(pdf_bytes)
+                loader = PyPDFLoader(pdf_io)  # create a new BytesIO instance
                 doc = loader.load()
                 char_text_splitter = CharacterTextSplitter(
                     chunk_size=1000, chunk_overlap=200
@@ -95,7 +96,7 @@ def file_embeddings():
                 doc_texts = char_text_splitter.split_document(doc)
             elif file.filename.endswith(".txt"):
                 doc_texts = [file_pointer.getvalue().decode("utf-8")]
-                
+
             # Reset file pointer
             file.seek(0)
 
