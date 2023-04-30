@@ -15,4 +15,3 @@ psycopg2
 pexpect
 requests
 pypdf
-pydantic
