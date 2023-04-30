@@ -77,6 +77,7 @@ def file_embeddings():
             conn.commit()
         # Reset file pointer
         file.seek(0)
+        file_pointer = BytesIO(file.read())
 
     # Set response headers for streaming
     def generate():
@@ -86,14 +87,14 @@ def file_embeddings():
             # Preprocess text content of document
             if file.filename.endswith(".pdf"):
                 pdf_bytes = file.read()
-                loader = PyPDFLoader(BytesIO(pdf_bytes))
+                loader = PyPDFLoader(file_pointer)
                 doc = loader.load()
                 char_text_splitter = CharacterTextSplitter(
                     chunk_size=1000, chunk_overlap=200
                 )
                 doc_texts = char_text_splitter.split_document(doc)
             elif file.filename.endswith(".txt"):
-                doc_texts = [file.read().decode("utf-8")]
+                doc_texts = [file_pointer.getvalue().decode("utf-8")]
                 
             # Reset file pointer
             file.seek(0)
