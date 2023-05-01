@@ -2,8 +2,11 @@ import os
 from io import BytesIO
 import requests
 from flask import Flask, request, Response, jsonify
+from langchain.memory import ConversationBufferMemory
+from langchain import OpenAI, LLMChain, PromptTemplate
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
+from twilio.twiml.messaging_response import MessagingResponse
 import openai
 import numpy as np
 import pinecone
@@ -13,6 +16,27 @@ app = Flask(__name__)
 
 # Initialize OpenAI API key
 openai_api_key = os.environ.get("OPENAI_API_KEY")
+template = """You are a chatbot having a conversation with a human.
+
+{chat_history}
+Human: {human_input}
+Chatbot:"""
+
+prompt = PromptTemplate(
+    input_variables=["chat_history", "human_input"], 
+    template=template
+)
+memory = ConversationBufferMemory(memory_key="chat_history")
+
+llm_chain = LLMChain(
+    llm=OpenAI(model_name="text-davinci-003",
+               openai_api_key=openai_api_key,
+               temperature=0.7
+               ), 
+    prompt=prompt, 
+    verbose=True, 
+    memory=memory,
+)
 
 # Initialize Pinecone with API key and environment
 pinecone.init(
@@ -208,6 +232,18 @@ def file_data(uuid):
             )
     else:
         return "Database connection not available.", 500
+
+
+@app.route('/chat', methods=["POST"])
+def chat():
+    response = MessagingResponse()
+    recepient = request.form['from']
+    message = request.form["body"]
+    reply = llm_chain.predict(human_input=message)
+    response.message(reply)
+    
+    return str(response)
+    
 
 
 if __name__ == "__main__":
