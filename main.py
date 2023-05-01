@@ -234,7 +234,7 @@ def file_data(uuid):
         return "Database connection not available.", 500
 
 
-@app.route('/chat', methods=["POST"])
+@app.route("/chat", methods=["POST"])
 def chat():
     response = MessagingResponse()
     recepient = request.form['from']
