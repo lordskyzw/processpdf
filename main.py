@@ -242,7 +242,7 @@ def chat():
     reply = llm_chain.predict(human_input=message)
     response.message(reply)
     
-    return str(response)
+    return response
     
 
 
