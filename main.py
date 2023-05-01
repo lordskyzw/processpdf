@@ -237,13 +237,14 @@ def file_data(uuid):
 @app.route("/chat", methods=["POST"])
 def chat():
     response = MessagingResponse()
-    recepient = request.form['from']
-    message = request.form["body"]
-    reply = llm_chain.predict(human_input=message)
-    response.message(reply)
-    
-    return response
-    
+    recipient = request.form.get('From')
+    message = request.form.get("Body")
+    if not message:
+        response.message("Sorry, I did not receive a message from you.")
+    else:
+        reply = llm_chain.predict(human_input=message)
+        response.message(reply)
+    return str(response)
 
 
 if __name__ == "__main__":
