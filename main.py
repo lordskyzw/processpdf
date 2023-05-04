@@ -2,11 +2,8 @@ import os
 from io import BytesIO
 import requests
 from flask import Flask, request, Response, jsonify
-from langchain.memory import ConversationBufferMemory
-from langchain import OpenAI, LLMChain, PromptTemplate
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
-from twilio.twiml.messaging_response import MessagingResponse
 import openai
 import numpy as np
 import pinecone
@@ -16,28 +13,6 @@ app = Flask(__name__)
 
 # Initialize OpenAI API key
 openai_api_key = os.environ.get("OPENAI_API_KEY")
-template = """You are a chatbot having a conversation with a human.
-
-{chat_history}
-Human: {human_input}
-Chatbot:"""
-
-prompt = PromptTemplate(
-    input_variables=["chat_history", "human_input"], 
-    template=template
-)
-memory = ConversationBufferMemory(memory_key="chat_history")
-
-llm_chain = LLMChain(
-    llm=OpenAI(model_name="text-davinci-003",
-               openai_api_key=openai_api_key,
-               temperature=0.7
-               ), 
-    prompt=prompt, 
-    verbose=True, 
-    memory=memory,
-)
-
 # Initialize Pinecone with API key and environment
 pinecone.init(
     api_key=os.environ.get("PINECONE_API_KEY"),
@@ -60,27 +35,12 @@ CREATE TABLE IF NOT EXISTS files (
     data BYTEA NOT NULL
 );
 """
-
 # Create table if it does not exist
 if conn is not None:
     with conn.cursor() as cur:
         cur.execute(table_schema)
         conn.commit()
         
-        
-        
-
-
-@app.route("/", methods=["GET"])
-def sayhi():
-    return "Tarmica says welcome to the file processing engine!"
-
-
-@app.route("/file_embeddings", methods=["GET"])
-def default_response():
-    return "You made a GET request! Make a POST request for the interesting magic!"
-
-
 # Define endpoint to receive PDF and text documents and store vector embeddings in Pinecone
 @app.route("/file_embeddings", methods=["POST"])
 def file_embeddings():
@@ -92,18 +52,16 @@ def file_embeddings():
         uuid = request.form["uuid"]
     except Exception as e:
         return f"Error loading document: {str(e)}", 400
-
+    content = file.read()
     # Save file to database
     if conn is not None:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO files (uuid, filename, data) VALUES (%s, %s, %s)",
-                (uuid, file.filename, file.read()),
+                (uuid, file.filename, content),
             )
             conn.commit()
-        # Reset file pointer
-        file.seek(0)
-        file_pointer = BytesIO(file.read())
+        file_pointer = BytesIO(content)
 
     # Set response headers for streaming
     def generate():
@@ -112,20 +70,16 @@ def file_embeddings():
         try:
             # Preprocess text content of document
             if file.filename.endswith(".pdf"):
-                with BytesIO(file.read()) as pdf_io:
+                with BytesIO(content) as pdf_io:
                     loader = PyPDFLoader(pdf_io)
                     doc = loader.load()
                     char_text_splitter = CharacterTextSplitter(
-                        chunk_size=1000, chunk_overlap=200
+                        chunk_size=1000, chunk_overlap=100
                     )
                     doc_texts = char_text_splitter.split_document(doc)
             elif file.filename.endswith(".txt"):
-                # Reset file pointer
-                file.seek(0)
+                
                 doc_texts = [file_pointer.getvalue().decode("utf-8")]
-
-            # Reset file pointer
-            file.seek(0)
 
             # Create vector embeddings of preprocessed text
             vector_embeddings = []
@@ -142,8 +96,7 @@ def file_embeddings():
             vector_embeddings = np.concatenate(vector_embeddings, axis=0)
 
             # Store vector embeddings in Pinecone
-            index_name = "schooldocs"
-
+            index_name = "thematrix"
             pinecone_index = pinecone.Index(index_name)
             index_ids = pinecone_index.add_ids([file.filename], vector_embeddings)
 
@@ -163,9 +116,7 @@ def file_embeddings():
             yield f"Error processing document: {str(e)}\n"
             yield "end"
 
-    return Response(generate(), mimetype="text/plain")
-
-
+    yield Response(generate(), mimetype="text/plain")
 
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
@@ -212,9 +163,6 @@ def transcribe():
         'transcript': transcript_text
     }), 200
 
-
-
-
 @app.route("/file_data/<uuid>", methods=["GET"])
 def file_data(uuid):
     # Retrieve file data from database using UUID
@@ -232,20 +180,6 @@ def file_data(uuid):
             )
     else:
         return "Database connection not available.", 500
-
-
-@app.route("/chat", methods=["POST"])
-def chat():
-    response = MessagingResponse()
-    recipient = request.form.get('From')
-    message = request.form.get("Body")
-    if not message:
-        response.message("Sorry, I did not receive a message from you.")
-    else:
-        reply = llm_chain.predict(human_input=message)
-        response.message(reply)
-    return str(response)
-
 
 if __name__ == "__main__":
     app.run(debug=True, port=os.getenv("PORT", default=5000))
